@@ -1,0 +1,171 @@
+
+	<div id="cnblogs_post_body" class="blogpost-body"><p><span style="font-family: 宋体; font-size: 18px">微信支付说明</span><br><span style="font-size: 16px">1.统一下单接口</span><br>        统一支付接口：<br>            　　url: https://api.mch.weixin.qq.com/pay/unifiedorder<br>            　　目的：通过此接口来创建预支付订单，获取订单支付需要的prepay_id<br>            　　过程:<br>                  　　　　1.对所有的支付中使用到的参数以字典序排序，然后使用商户的key进行MD5加密，获得加密字符串sign，                   <br>                   　　　　2.然后将sign加入以上信息中将其转化为xml，调用统一下单接口，获取prepay_id。<br>           　　代码说明:<br>                  　　　　<br>                  　　　</p>
+<div class="cnblogs_code">
+<pre><span style="color: #008000">1.构建支付参数<br>//</span><span style="color: #008000">写购买商品的详情</span>
+JSONObject object = <span style="color: #0000ff">new</span><span style="color: #000000"> JSONObject();
+JSONArray array </span>= <span style="color: #0000ff">new</span><span style="color: #000000"> JSONArray();
+JSONObject object1 </span>= <span style="color: #0000ff">new</span><span style="color: #000000"> JSONObject();
+object1.put(</span>"goods_id","购买商品id"<span style="color: #000000">);
+object1.put(</span>"goods_name","购买商品名称"<span style="color: #000000">);
+object1.put(</span>"quantity","购买商品数量"<span style="color: #000000">);
+object1.put(</span>"price","商品单价"<span style="color: #000000">);
+array.add(object1);
+object.put(</span>"goods_detail"<span style="color: #000000">,array);
+</span><span style="color: #008000">//</span><span style="color: #008000">构建统一下单需要的参数</span>
+Map&lt;String,String&gt; map = <span style="color: #0000ff">new</span> HashMap&lt;&gt;<span style="color: #000000">();
+map.put(</span>'appid',"支付的微信公众号的appid"<span style="color: #000000">)；
+map.put(</span>"mch_id","支付的商户号"<span style="color: #000000">)；
+map.put(</span>"device_info","设备编号"<span style="color: #000000">);
+map.put(</span>"sign_type","加密类型，一般使用MD5"<span style="color: #000000">)；
+map.put(</span>"body","商品描述"<span style="color: #000000">)；
+map.put(</span>"out_trade_no","商户订单号"<span style="color: #000000">)；
+map.put(</span>"total_url","购买总金额"<span style="color: #000000">)；
+map.put(</span>"notify_url","支付成功后微信的回掉地址，地址不许带参数"<span style="color: #000000">)；
+map.put(</span>"trade_type","交易类型"<span style="color: #000000">)；
+map.put(</span>"nonce_str","随机字符串"<span style="color: #000000">)；
+map.put(</span>"detail","商品详情"<span style="color: #000000">)；
+map.put(</span>"openid","支付人的openid"<span style="color: #000000">);
+map.put(</span>"spbill_create_ip","支付人ip地址")；<br><br><br></pre>
+</div>
+<div class="cnblogs_code">
+<pre><span style="color: #008000">//</span><span style="color: #008000">将统一下单参数进行字典序排序，进行签名</span>
+
+<span style="color: #008000">/**</span><span style="color: #008000">
+* 微信支付签名算法(详见:</span><span style="color: #008000; text-decoration: underline">https://pay.weixin.qq.com/wiki/doc/api/tools/cash_coupon.php?chapter=4_3</span><span style="color: #008000">).
+*
+* </span><span style="color: #808080">@param</span><span style="color: #008000"> params 参数信息
+* </span><span style="color: #808080">@param</span><span style="color: #008000"> signType 签名类型，如果为空，则默认为MD5
+* </span><span style="color: #808080">@param</span><span style="color: #008000"> signKey 签名Key
+* </span><span style="color: #808080">@param</span><span style="color: #008000"> ignoreSignType 签名时，是否忽略signType
+* </span><span style="color: #808080">@return</span><span style="color: #008000"> 签名字符串
+</span><span style="color: #008000">*/</span>
+<span style="color: #0000ff">public</span> <span style="color: #0000ff">static</span> String createSign(Map&lt;String, String&gt; params, String signType, String signKey, <span style="color: #0000ff">boolean</span><span style="color: #000000"> ignoreSignType) {
+　　SortedMap</span>&lt;String, String&gt; sortedMap = <span style="color: #0000ff">new</span> TreeMap&lt;&gt;<span style="color: #000000">(params);
+
+　　StringBuilder toSign </span>= <span style="color: #0000ff">new</span><span style="color: #000000"> StringBuilder();
+　　</span><span style="color: #0000ff">for</span><span style="color: #000000"> (String key : sortedMap.keySet()) {
+　　　　String value </span>=<span style="color: #000000"> params.get(key);
+　　　　</span><span style="color: #0000ff">boolean</span> shouldSign = <span style="color: #0000ff">false</span><span style="color: #000000">;
+　　　　</span><span style="color: #0000ff">if</span> (ignoreSignType &amp;&amp; "sign_type"<span style="color: #000000">.equals(key)) {
+　　　　　　shouldSign </span>= <span style="color: #0000ff">false</span><span style="color: #000000">;
+　　　　} </span><span style="color: #0000ff">else</span> <span style="color: #0000ff">if</span><span style="color: #000000"> (StringUtils.isNotEmpty(value)
+　　　　　　</span>&amp;&amp; !Lists.newArrayList("sign", "key", "xmlString", "xmlDoc", "couponList"<span style="color: #000000">).contains(key)) {
+　　　　　　　shouldSign </span>= <span style="color: #0000ff">true</span><span style="color: #000000">;
+　　　　}
+
+　　</span><span style="color: #0000ff">if</span><span style="color: #000000"> (shouldSign) {
+　　　　toSign.append(key).append(</span>"=").append(value).append("&amp;"<span style="color: #000000">);
+　　}
+　}
+
+　　toSign.append(</span>"key="<span style="color: #000000">).append(signKey);
+　　</span><span style="color: #0000ff">if</span> ("HMAC_SHA256"<span style="color: #000000">.equals(signType)) {
+　　　　</span><span style="color: #0000ff">return</span><span style="color: #000000"> createHmacSha256Sign(toSign.toString(), signKey);
+　　} </span><span style="color: #0000ff">else</span><span style="color: #000000"> {
+　　　　</span><span style="color: #0000ff">return</span><span style="color: #000000"> DigestUtils.md5Hex(toSign.toString()).toUpperCase();
+　　}
+}
+
+</span><span style="color: #008000">//</span><span style="color: #008000">将上一步得到的签名加入上一个支付参数中，转为xml请求统一支付下单接口，获取订单支付需要的prepay_id</span>
+map.put("sign","上一步得到的签名"<span style="color: #000000">)；
+</span><span style="color: #008000">//</span><span style="color: #008000">将map转为xml</span>
+<span style="color: #0000ff">public</span> <span style="color: #0000ff">static</span> String map2XmlString(Map&lt;String, String&gt;<span style="color: #000000"> map) {
+　　String xmlResult </span>= ""<span style="color: #000000">;
+
+　　StringBuffer sb </span>= <span style="color: #0000ff">new</span><span style="color: #000000"> StringBuffer();
+　　sb.append(</span>"&lt;xml&gt;"<span style="color: #000000">);
+　　</span><span style="color: #0000ff">for</span><span style="color: #000000"> (String key : map.keySet()) {
+　　　　String value </span>= "&lt;![CDATA[" + map.get(key) + "]]&gt;"<span style="color: #000000">;
+　　　　sb.append(</span>"&lt;" + key + "&gt;" + value + "&lt;/" + key + "&gt;"<span style="color: #000000">); 
+　　}
+　　sb.append(</span>"&lt;/xml&gt;"<span style="color: #000000">);
+　　xmlResult </span>=<span style="color: #000000"> sb.toString()；
+　　</span><span style="color: #0000ff">return</span><span style="color: #000000"> xmlResult;
+}
+</span><span style="color: #008000">//</span><span style="color: #008000">进行网络请求</span>
+
+<span style="color: #0000ff">public</span> <span style="color: #0000ff">static</span><span style="color: #000000"> String httpPostWithXml(String xml, String url){
+　　StringBuffer stringBuffer </span>= <span style="color: #0000ff">new</span><span style="color: #000000"> StringBuffer();
+　　HttpPost post </span>= <span style="color: #0000ff">null</span><span style="color: #000000">;
+　　</span><span style="color: #0000ff">try</span><span style="color: #000000"> {
+　　　　HttpClient httpClient </span>= <span style="color: #0000ff">new</span><span style="color: #000000"> DefaultHttpClient();
+
+</span><span style="color: #008000">//</span><span style="color: #008000"> 设置超时时间
+</span><span style="color: #008000">//</span><span style="color: #008000">httpClient.getParams().setParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, 2000);
+</span><span style="color: #008000">//</span><span style="color: #008000">httpClient.getParams().setParameter(CoreConnectionPNames.SO_TIMEOUT, 2000);</span>
+<span style="color: #000000">
+　　　　post </span>= <span style="color: #0000ff">new</span><span style="color: #000000"> HttpPost(url);
+</span><span style="color: #008000">//</span><span style="color: #008000"> 构造消息头</span>
+　　　　post.setHeader("Content-type", "application/json; charset=utf-8"<span style="color: #000000">);
+　　　　post.setHeader(</span>"Connection", "Close"<span style="color: #000000">);
+
+
+</span><span style="color: #008000">//</span><span style="color: #008000"> 构建消息实体</span>
+　　　　StringEntity entity = <span style="color: #0000ff">new</span> StringEntity(xml,"UTF-8"<span style="color: #000000">);
+　　　　entity.setContentEncoding(</span>"UTF-8"<span style="color: #000000">);
+</span><span style="color: #008000">//</span><span style="color: #008000"> 发送Json格式的数据请求</span>
+　　　　entity.setContentType("application/json"<span style="color: #000000">);
+　　　　post.setEntity(entity);
+
+　　　　HttpResponse response </span>=<span style="color: #000000"> httpClient.execute(post);
+</span><span style="color: #008000">//</span><span style="color: #008000"> 检验返回码</span>
+　　　　<span style="color: #0000ff">int</span> statusCode =<span style="color: #000000"> response.getStatusLine().getStatusCode();
+　　　　</span><span style="color: #0000ff">if</span>(statusCode !=<span style="color: #000000"> HttpStatus.SC_OK){
+　　　　　　LogUtil.info(</span>"请求出错: "+<span style="color: #000000">statusCode);
+　　　　}</span><span style="color: #0000ff">else</span><span style="color: #000000">{
+　　　　　　InputStream inputStream </span>=<span style="color: #000000"> response.getEntity().getContent();
+　　　　　　BufferedReader br </span>= <span style="color: #0000ff">new</span> BufferedReader(<span style="color: #0000ff">new</span> InputStreamReader(inputStream,"utf-8"<span style="color: #000000">));
+
+　　　　　　String str</span>= ""<span style="color: #000000">;
+　　　　　　</span><span style="color: #0000ff">while</span>((str = br.readLine()) != <span style="color: #0000ff">null</span><span style="color: #000000">){
+　　　　　　　　stringBuffer .append(str );
+　　　　　　}
+　　　　}
+　　} </span><span style="color: #0000ff">catch</span><span style="color: #000000"> (Exception e) {
+　　　　e.printStackTrace();
+　　}
+　　</span><span style="color: #0000ff">return</span><span style="color: #000000"> stringBuffer.toString();
+}
+</span><span style="color: #008000">//</span><span style="color: #008000">得到了prepay_id，获取支付的签名</span>
+Map&lt;String,String&gt; map = <span style="color: #0000ff">new</span> HashMap&lt;&gt;<span style="color: #000000">();
+map.put(</span>'appId',"支付的微信公众号的appid"<span style="color: #000000">)；
+map.put(</span>"signType","加密类型"<span style="color: #000000">)；
+map.put(</span>"nonceStr","随机字符串"<span style="color: #000000">);
+map.put(</span>"package","固定格式: prepay_id=上一步获得的prepay_id"<span style="color: #000000">)；
+map.put(</span>"timeStamp","当前时间戳"<span style="color: #000000">)；
+</span><span style="color: #008000">//</span><span style="color: #008000">将上面的参数使用商户key进行签名，得到paysign，将paySign加入上面的参数之中，发给h5页面调起支付。</span>
+map.put(paySign,"得到的签名"<span style="color: #000000">)；
+
+</span><span style="color: #008000">//</span><span style="color: #008000">h5页面调起支付</span>
+<span style="color: #000000">WeixinJSBridge.invoke(
+　　</span>'getBrandWCPayRequest'<span style="color: #000000">, {
+　　　　</span>"appId":rs.appId, <span style="color: #008000">//</span><span style="color: #008000">公众号名称，由商户传入</span>
+　　　　"timeStamp":rs.timeStamp, <span style="color: #008000">//</span><span style="color: #008000">时间戳，自1970年以来的秒数</span>
+　　　　"nonceStr":rs.nonceStr, <span style="color: #008000">//</span><span style="color: #008000">随机串</span>
+　　　　"package":rs.<span style="color: #0000ff">package</span><span style="color: #000000">,
+　　　　</span>"signType":"MD5", <span style="color: #008000">//</span><span style="color: #008000">微信签名方式：</span>
+　　　　"paySign":rs.paySign <span style="color: #008000">//</span><span style="color: #008000">微信签名</span>
+　　<span style="color: #000000">},
+　　function(res){
+　　　　</span><span style="color: #0000ff">if</span>(res.err_msg == "get_brand_wcpay_request:ok"<span style="color: #000000"> ) {
+　　　　　　</span><span style="color: #008000">//</span><span style="color: #008000">支付成功</span>
+　　　　}<span style="color: #0000ff">else</span> <span style="color: #0000ff">if</span>(res.err_msg =="get_brand_wcpay_request:fail"<span style="color: #000000">){
+　　　　　　</span><span style="color: #008000">//</span><span style="color: #008000">支付失败</span>
+　　　　}<span style="color: #0000ff">else</span> <span style="color: #0000ff">if</span>(res.err_msg == "get_brand_wcpay_request:cancel"<span style="color: #000000">){
+　　　　　　</span><span style="color: #008000">//</span><span style="color: #008000">取消支付</span>
+　　　　}<span style="color: #0000ff">else</span><span style="color: #000000"> {
+　　　　　　</span><span style="color: #008000">//</span><span style="color: #008000">其他情况</span>
+　　　　<span style="color: #000000">}
+　　}
+);</span></pre>
+</div>
+<p>&nbsp;</p></div><div id="MySignature"></div>
+<div class="clear"></div>
+<div id="blog_post_info_block">
+<div id="BlogPostCategory"></div>
+<div id="EntryTag"></div>
+<div id="blog_post_info">
+</div>
+<div class="clear"></div>
+<div id="post_next_prev"></div>
+</div>
